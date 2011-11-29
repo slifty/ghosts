@@ -768,16 +768,9 @@ void GhostsApp::draw()
             play = Surface(loadImage(loadResource("PlayButton.jpg")));
             
             ISREADY = true;
-<<<<<<< local
-=======
             console() << "bang";
->>>>>>> other
             enableRotation();
-<<<<<<< local
-            
-=======
             console() << "bam";
->>>>>>> other
         } 
         
         // default is canopy
