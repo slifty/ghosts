@@ -1,0 +1,5 @@
+# XCode Files
+xcode/*
+xcode
+*.DS_Store
+.DS_Store
