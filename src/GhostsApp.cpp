@@ -1,6 +1,3 @@
-//fix the display of images
-//add arrows
-
 #include "cinder/app/AppCocoaTouch.h"
 #include "cinder/Camera.h"
 #include "cinder/gl/Texture.h"
@@ -17,7 +14,6 @@
 #include <math.h>
 #include "cinder/Text.h"
 #include "cinder/Font.h"
-#include "cinder/Utilities.h"
 
 using namespace std;
 using namespace ci;
@@ -25,14 +21,15 @@ using namespace ci::app;
 
 int SCREEN_WIDTH = 1024;
 int SCREEN_HEIGHT = 768;
-int TILE_WIDTH = 512; //factor of 1024
-int TILE_HEIGHT = 2048; //factor of 1024
+int TILE_WIDTH = 256; //must be a factor of 1024 for math to work out
+int TILE_HEIGHT = 2048; //must be a factor of 1024 for math to work out
 int SCREEN_ROWS = ceil(SCREEN_HEIGHT / TILE_HEIGHT) + 2;
 int SCREEN_COLS = ceil(SCREEN_WIDTH / TILE_WIDTH) + 2;
 int LOWEST_ROW = 0;
 
 int ISREADY = false;
 
+//Structure that contains information on a data object in the panorama
 struct Projection {
     int id;
     int offX;
@@ -44,6 +41,8 @@ struct Projection {
     vector<string> captionLines;
     TextLayout info;
     TextLayout caption;
+    gl::Texture infoImage;
+    gl::Texture captionImage;
     int copiedBy;
     bool hasImage;
 };
@@ -56,17 +55,19 @@ public:
     virtual void    rotated(Vec3f rotation);
 	virtual void	draw();
     
+    void reset();
+    
     void	touchesBegan( TouchEvent event );
 	void	touchesMoved( TouchEvent event );
 	void	touchesEnded( TouchEvent event );
 	
 	CameraPersp		mCam;
     
-    Surface           * mGhostSurfaces;  // All the available ghost surfaces
+    
     Surface           mainImage;
     int               liveIndex; // The upper left quad index
-    gl::Texture       * mLiveTextures; // The four textures being rendered
-    
+    vector<gl::Texture>   mLiveTextures; // The four textures being rendered
+    vector<gl::Texture>   mGhostSurfaces; // All the available ghost surfaces    
     
     vector<Projection>  mProjections;
     bool                astralActivated;
@@ -82,7 +83,6 @@ public:
     int baseRow;
     int baseCol;
     
-    
     float capturePitch;
     float captureRoll;
     float captureYaw;
@@ -94,75 +94,86 @@ public:
     Surface tooHighIndicator;// image that is displayed if iPad looks too high
     Surface tooLowIndicator;//  image that is displayed if iPad looks too low
     Surface scanning; //displays when scanning
-    Surface buttonSurface; //indicator on top of an object
-    Surface selectedObject;//inverted indicator on top of object (signal that it's being scanned)
-    Surface pause;//pause button
-    Surface play;//play button
+    gl::Texture buttonSurface; //indicator on top of an object
+    gl::Texture selectedObject;//inverted indicator on top of object (signal that it's being scanned)
+    gl::Texture pause;//pause button
+    gl::Texture play;//play button
+    gl::Texture calibrate; //calibration button
+    gl::Texture switchPanorama; //switch panorama button
     
-    float actualX;// X pixel on canvas
-    float actualY;// Y pixel on canvas
-    float xOffset;// global X location of where top left corner is on the canvas
-    float yOffset;// global Y location of where top left corner is on the canvas
-    float zPitch;
-    float oldTime;// time since an object has first been scanned (-1.0 means no object is being scanned)
-    float SCAN_TIME; // amount of time object has to be in scanning box to trigger event
+    float actualX; //X pixel on complete panorama
+    float actualY; //Y pixel on complete panorama
+    float xOffset; //global X location of where top left corner is on the canvas
+    float yOffset; //global Y location of where top left corner is on the canvas
+    float zPitch;  //global pitch
+    float oldTime; //time since an object has first been scanned (-1.0 means no object is being scanned)
+    float SCAN_TIME; //amount of time object has to be in scanning box to trigger event
     float dist; //distance of scanned object from the center
     float timeTouched; //time of last touch
     
-    int scannerX;// Width of scanning rectangle
-    int scannerY;// Height of scanning rectangle
-    int objectScanned;//current object being scanned
-    int displayedObject;//object whose image is being displayed
+    int scannerX; //Width of scanning rectangle
+    int scannerY; //Height of scanning rectangle
+    int objectScanned; //current object being scanned
+    int displayedObject; //object whose image is being displayed
     
-    int canopyID;//ID of the current canopy being viewed
+    int canopyID; //ID of the current canopy being viewed
     
-    bool isPaused;// pauses when a box is touched
+    bool isPaused; //if image shouldn't be updated
     bool recentlyTouched; //if the screen has been touched
-    bool showScanBox;//shows scan box
+    bool showScanBox; //if the scan box should be shown
     
-    int top;
-    int right;
-    int bottom;
-    int left;
+    int top; //used to track how many objects are above the screen
+    int right; //used to track how many objects are to the right of screen
+    int bottom; //used to track how many objects are below the screen
+    int left; //used to track how many objects are to the left of the screen
     
-    bool load;//indicates if the canopy should be displayed yet
+    int colsOnEdges; //how many columns are added to the edge besides the ones that cover the unedited panorama
     
-    vector<int>  connect;
-    int placeInConnect;
-    int difference;
-    int widthOfSmallestBox;
+    Vec3f rotation;
     
-    int colsOnEdges;
-    
-    Vec3f           rotation;
-    
-    bool onLoadScreen;
-    vector<string> tableOfCanopies;
-    gl::Texture canopyIndexes;
-    vector<gl::Texture> numberPadNumbers;
-    bool loadingIndexes;
+    bool onLoadScreen; //if on the load screen
+    vector<string> tableOfCanopies; //list of the canopies available
+    gl::Texture canopyIndexes; //textures of the canopy indecies
+    vector<gl::Texture> numberPadNumbers; //number pad textures
+    bool loadingIndexes; //if it should load the list of indecies
     
     int firstDigit;
     int secondDigit;
     bool notVaildID;
     bool shouldUpdateImage;
     
-    float actuX;
-    float currX;
-    float prevX;
+    float actuX; //the actual x position calculated by small delta moves
+    float currX; //the new X gyro reading
+    float prevX; //the old actual x position
     
-    vector<int> canopiesOnServer;
+    vector<int> canopiesOnServer; //list of ID numbers of canopies on the server 
+    
+    int lastCanopyID; //previous canopy
+    
 };
+
+void GhostsApp::reset(){ //resets the app so it can load a new panorama
+    
+    lastCanopyID = canopyID;
+    mLiveTextures.clear();
+    mGhostSurfaces.clear();
+    onLoadScreen = true;
+    ISREADY = false;
+    disableRotation();
+    shutdown();
+    setup();
+}
 
 void GhostsApp::setup()
 {
-    canopyID = -1;
+    canopyID = -1; //indicates no canopy is loaded
+    lastCanopyID = -1;
     canopiesOnServer.resize(0);
     
-    isPaused = false;//isn't paused
-    isCalibrate = false;//isn't being calibrated
-    recentlyTouched = false;//hasn't been touched recently
-    showScanBox = false;//doesn't show scanning box
+    isPaused = false; //isn't paused
+    isCalibrate = false; //isn't being calibrated
+    recentlyTouched = false; //hasn't been touched recently
+    showScanBox = false; //doesn't show scanning box
     
     dist = pow(150.0, 2) + pow(100.0, 2);//default biggest distance a scanned object can be from center
     
@@ -175,6 +186,7 @@ void GhostsApp::setup()
     oldTime = -1.0;//default time (no reference time)
     SCAN_TIME = 1.0;//time object needs to be in scanning box to display text/image
     
+    //default readings to adjust image to
     capturePitch = 0;
     captureRoll = 0;
     captureYaw = 0;
@@ -183,26 +195,21 @@ void GhostsApp::setup()
     modYaw = 0;
     liveIndex = -1;
     astralActivated = false;
-    
     baseRow = 0;
     baseCol = 0;
     
-    connect.resize(0);
-    placeInConnect = 0;
-    widthOfSmallestBox = TILE_WIDTH;
-    
     onLoadScreen = true;
     loadingIndexes = true;
-    firstDigit = -1;
-    secondDigit = -1;
     shouldUpdateImage = true;
     
-    notVaildID = false;
+    //indicates no digits are entered
+    firstDigit = -1; 
+    secondDigit = -1;
     
-    actuX = -1.0;
+    notVaildID = false; //looking for a valid ID
+    actuX = -1.0; //indicates no precious actual X is stored
     
-    gl::setMatricesWindow( getWindowWidth(), getWindowHeight() );
-    
+    gl::setMatricesWindow( getWindowWidth(), getWindowHeight() ); //sets OpenGL to use the screen bounds
 }
 
 void GhostsApp::prepareSettings( Settings *settings )
@@ -226,8 +233,11 @@ void GhostsApp::rotated( Vec3f rotation )
 }
 
 void GhostsApp::touchesBegan( TouchEvent event )
-{
+{    
+    //Loading Screen Controls:
     if (onLoadScreen){
+        
+        //define x and y coordinates of the touch
         for( vector<TouchEvent::Touch>::const_iterator touchIt = event.getTouches().begin(); touchIt != event.getTouches().end(); ++touchIt ) {
             
             int x = touchIt->getPos().x;
@@ -235,6 +245,8 @@ void GhostsApp::touchesBegan( TouchEvent event )
             
             int touchedDigit = -1;
             
+            //reads input from the number pad
+            //The "go" and "back" button are 10 and -10 respectively
             if (y < 782 && y > 712){
                 if (x < 374 && x > 304){
                     touchedDigit = 1;
@@ -278,6 +290,9 @@ void GhostsApp::touchesBegan( TouchEvent event )
                 }
             }
             
+            //if a number was touched, register it as the first digit, second digit, or nothing
+            //if the back button was touched, delete the last inputted digit
+            //if the go button was touched, check if it is a validID
             if (touchedDigit != -1 && firstDigit == -1){
                 if (touchedDigit != -10){
                     firstDigit = touchedDigit;
@@ -287,7 +302,7 @@ void GhostsApp::touchesBegan( TouchEvent event )
                 firstDigit = -1;
             }
             else if (touchedDigit != -1 && firstDigit != -1 && secondDigit == -1){
-                if (touchedDigit != -10){
+                if (touchedDigit != -10 && touchedDigit != 10){
                     secondDigit = touchedDigit;
                 }
             }
@@ -295,6 +310,8 @@ void GhostsApp::touchesBegan( TouchEvent event )
                 secondDigit = -1;
                 notVaildID = false;
             }
+            
+            //If the number is a validID, set canopy to load to be that ID 
             else if (touchedDigit == 10 && firstDigit != -1 && secondDigit != -1){
                 canopyID = 10 * firstDigit + secondDigit;
                 bool isValidID = false;
@@ -310,30 +327,29 @@ void GhostsApp::touchesBegan( TouchEvent event )
             }
         }
     }
+    
+    //Image Veiwing Controls:
     else{
+        
         recentlyTouched = true;
         timeTouched = getElapsedSeconds();
         
-        // capture image position
+        //define x and y coordinates of the touch
         for( vector<TouchEvent::Touch>::const_iterator touchIt = event.getTouches().begin(); touchIt != event.getTouches().end(); ++touchIt ) {
             
             int xTouch = touchIt->getPos().x;
             int yTouch = touchIt->getPos().y;
             
-            actualX = xOffset - (768.0 - (float)xTouch);// pixel X location relative to the image of touch
+            actualX = xOffset - (768.0 - (float)xTouch); //pixel X location relative to the image of touch
             actualY = yOffset - (float)yTouch; //pixel y location relative to the image of touch
             
-            //            console() << "X Offset: " << xOffset << std::endl;
-            //            console() << "Y Offset: " << yOffset << std::endl;
-            //            
-            //            console() << "Screen X: " << xTouch << std::endl;
-            //            console() << "Screen Y: " << yTouch << std::endl;
-            //            
-            //            console() << "Actual X: " << actualX << std::endl;
-            //            console() << "Actual Y: " << actualY << std::endl;
+            //switches panorama if bottom right corner touched
+            if (yTouch > 924 && xTouch < 100){
+                reset();
+            }
             
-            //pause button (fix so it doesn't change the orientation
-            if (xTouch > 650 && yTouch < 144){
+            //pause button (stops updating the image if paused)
+            if (yTouch < 120){
                 if (isPaused){
                     isPaused = false;
                 }
@@ -364,18 +380,19 @@ void GhostsApp::touchesEnded( TouchEvent event )
 
 void GhostsApp::draw()
 {
-    
+    //Draw the load screen
     if (onLoadScreen){
         gl::clear(Color(0,0,0));
         if (loadingIndexes){
             
-            //loads all the canopies' info
+            //loads all the canopies' name and ID number
             ostringstream tableInfo;
             tableInfo.str("");
             XmlTree canopies(loadUrl("http://ghosts.slifty.com/services/getCanopyList.php"));
             list<XmlTree> listOfCanopies = canopies.getChild("canopies").getChildren();
             list<XmlTree>::iterator i;
             tableOfCanopies.resize(listOfCanopies.size() + 2);
+            
             
             //creates a table of contents with the index and names of each panorama
             int tableIndex = 2;
@@ -391,25 +408,27 @@ void GhostsApp::draw()
                 canopiesOnServer[canopiesOnServer.size() - 1] = atoi(canopyOption.getChild("id").getValue().c_str());
             }
             
+            //creates TextLayout for the table of contents
             TextLayout canopyTableOfContents;
             canopyTableOfContents.clear(ColorA(0.0f,0.0f,0.0f,1.0));
             canopyTableOfContents.setFont(Font("Arial", 20));
             canopyTableOfContents.setColor(Color(10.0f,10.0f,10.0f));
             
+            //fills table of contents
             for (int u = 0; u < tableOfCanopies.size(); u++){
                 canopyTableOfContents.addLine(tableOfCanopies[u]);
             }
             
+            //creates an image fot the table of contents
             canopyIndexes = gl::Texture(canopyTableOfContents.render(true, false));
             
+            //Creates a table of each number button
+            //also creates a list of rendered images for each number buttom
             vector<TextLayout> numberPad;
             numberPad.resize(12);
-            
-            ostringstream temp;
+            ostringstream temp; //the number to add to the table of numbers
             numberPadNumbers.resize(12);
-            
             for (int r = 0; r < numberPad.size(); r++){
-                
                 numberPad[r].clear(ColorA(1.0f,1.0f,1.0f,1.0));
                 numberPad[r].setFont(Font("Arial", 50));
                 numberPad[r].setColor(Color(0.0f,0.0f,0.0f));
@@ -434,11 +453,11 @@ void GhostsApp::draw()
                     numberPadNumbers[r] = gl::Texture(numberPad[r].render(true, false));
                 }
             }
-            
-            loadingIndexes = false;
+
+            loadingIndexes = false; //done loading the number pad and table of contents
         }
         
-        
+        //Draws the Title and directions
         glPushMatrix();
         glTranslatef(400, 50, 0);
         glRotatef(90, 0, 0, 1);
@@ -447,6 +466,7 @@ void GhostsApp::draw()
         gl::draw(canopyIndexes);
         glPopMatrix();
         
+        //draws the number pad
         glPushMatrix();
         glRotatef(90, 0, 0, 1);
         
@@ -487,11 +507,11 @@ void GhostsApp::draw()
         gl::drawSolidRect(Rectf(872, -63, 942, -134));//go
         gl::draw(numberPadNumbers[11],Vec2f(888, -114));
         
-        ostringstream inputtedIndex;
+        ostringstream inputtedIndex; //the digits inputted by the user
         inputtedIndex.str("");
         
+        //Draw the numbers inputed by the user on the screen
         gl::drawStringCentered("Inputed Digits:", Vec2f(749, -474), ColorA(1,1,1,1), Font("Arial", 30));
-        
         if (firstDigit != -1){
             inputtedIndex << firstDigit;
             gl::drawStringCentered(inputtedIndex.str(), Vec2f(849, -474), ColorA(1,1,1,1), Font("Arial", 40));
@@ -501,24 +521,33 @@ void GhostsApp::draw()
             inputtedIndex << secondDigit;
             gl::drawStringCentered(inputtedIndex.str(), Vec2f(874, -474), ColorA(1,1,1,1), Font("Arial", 40));
         }
-        
+        //if not a valid ID, tell the user so
         if (notVaildID){
             gl::drawStringCentered("*not a vaild index!", Vec2f(950, -464));
         }
         
         glPopMatrix();
         
+        //if a canopy has been selected, clear the screen, tell the user the panorama is loading, and load the selected panorama
         if(canopyID != -1){
             onLoadScreen = false;
             gl::clear(Color(0,0,0));
             glPushMatrix();
-            glTranslatef(434,562,0);
+            glTranslatef(434,300,0);
             glRotatef(90,0,0,1);
-            gl::drawStringCentered("Loading Panorama...", Vec2f(0,0), ColorA(1,1,1,1), Font("Arial", 50));
+            
+            TextLayout loadingPanorama;
+            loadingPanorama.clear(ColorA(0.0f,0.0f,0.0f,1.0));
+            loadingPanorama.setFont(Font("Arial", 50));
+            loadingPanorama.setColor(Color(10.0f,10.0f,10.0f));
+            loadingPanorama.addLine("Loading Panorama...");
+            gl::Texture loadingPano = gl::Texture(loadingPanorama.render(true, false));
+            gl::draw(loadingPano);
             glPopMatrix();
         }
     }
     
+    //If not on the load screen anymore
     else{
         if(!ISREADY) {
             
@@ -526,46 +555,53 @@ void GhostsApp::draw()
             ostringstream oss;
             oss << "http://ghosts.slifty.com/services/getCanopyInformation.php?c=" << canopyID;
             
+            //Loads the projections
             XmlTree doc( loadUrl( oss.str() ) );
             console() << oss.str() << std::endl;
             XmlTree canopy = doc.getChild("canopy");
             XmlTree projections = canopy.getChild("projections");
             
+            //Loads the panorama's dimensions
             ghostHeight = atoi(canopy.getChild("height").getValue().c_str());
             ghostWidth = atoi(canopy.getChild("width").getValue().c_str());
             
-            // Load in projection data
+            //Loads in projection data 
             list<XmlTree> L = projections.getChildren();
             list<XmlTree>::iterator i;
             mProjections.resize(L.size());
             
+            //creates all projection structures
             int cursor = 0;
-            
             for(i = L.begin(); i != L.end(); ++i, ++cursor) {
                 XmlTree projectionXML = *i;
                 
                 Projection proj;
+                
+                //loads its location on the canopy and its ID number
                 proj.id = atoi(projectionXML.getChild("id").getValue().c_str());
                 proj.offX = atoi(projectionXML.getChild("offX").getValue().c_str())+ 1024;
                 proj.offY = atoi(projectionXML.getChild("offY").getValue().c_str());
                 proj.height = atoi(projectionXML.getChild("height").getValue().c_str());
                 proj.width = atoi(projectionXML.getChild("width").getValue().c_str());
-                proj.hasImage = false;
                 
-                //loads projection image
+                //prints out projection's URL location
                 oss.str("");
                 oss << "http://ghosts.slifty.com/services/getPortalImage.php?p=" << proj.id;
                 console() << oss.str() << std::endl;
                 
+                //checks if the the projection has an image and loads it if it does
                 if (atoi(projectionXML.getChild("width").getValue().c_str()) != 0){
                     proj.imageFile = Surface(loadImage( loadUrl( oss.str() ) ));
                     proj.hasImage = true;
                 }
+                else{
+                    proj.hasImage = false;
+                }
                 
-                //Text gotten from server
+                //loads text gotten from server
                 string text = projectionXML.getChild("description").getValue(); 
                 
-                //Caption gotten from server
+                //loads caption gotten from server
                 string caption = projectionXML.getChild("caption").getValue();
                 if (!proj.hasImage){
                     caption = " ";
@@ -671,7 +707,6 @@ void GhostsApp::draw()
                 textLayout.setFont(Font("Arial", 18));//font
                 textLayout.setColor(Color(1.0f,1.0f,1.0f));//text color
                 
-                
                 //add text lines for the object
                 for (int t = 0; t < proj.textLines.size(); t++){
                     textLayout.addLine(proj.textLines[t]);
@@ -681,6 +716,9 @@ void GhostsApp::draw()
                 }
                 proj.info = textLayout;
                 proj.caption = captionText;
+                
+                proj.infoImage = gl::Texture(proj.info.render(true, false));
+                proj.captionImage = gl::Texture(proj.caption.render(true, false));
                 
                 proj.copiedBy = -1;
                 
@@ -703,25 +741,23 @@ void GhostsApp::draw()
             }
             
             // Load canopy data
+            
             console() << "gh " << ghostHeight << std::endl;
             console() << "gw " << ghostWidth << std::endl;
             
             ghostRows = ceil(ghostHeight / (float)TILE_HEIGHT);
             ghostCols = ceil(ghostWidth / (float)TILE_WIDTH);
+            mLiveTextures.resize(SCREEN_ROWS * SCREEN_COLS);
+            mGhostSurfaces.resize(ghostRows * (ghostCols + (1024 / TILE_WIDTH)));
             
-            colsOnEdges = 1024 / TILE_WIDTH + 1;
-            console() << "cols edge" << colsOnEdges << endl;
-            
-            mLiveTextures = new gl::Texture[SCREEN_ROWS * SCREEN_COLS];
-            mGhostSurfaces = new Surface[ghostRows * (ghostCols + colsOnEdges)];
-            
-            int ghostIndex = ghostRows * colsOnEdges;
+            int ghostIndex = ghostRows * (1024 / TILE_WIDTH);
             int startIndex = 0;
             
             oss.str("");
             oss << "http://ghosts.slifty.com/services/getCanopyImage.php?c=" << canopyID << "&h=" << ghostHeight << "&w=" << ghostWidth << "&x=" << 0 << "&y=" << 0;
-            console() << "main Iamge: " << oss.str() << endl; 
-            mainImage = Surface( loadImage( loadUrl( oss.str() ) ));
+            console() << oss.str() << std::endl;
+            
+            Surface panorama = Surface( loadImage( loadUrl( oss.str() ) ));
             
             for(int x = 0; x < ghostCols ; ++x) {
                 for(int y = 0; y < ghostRows ; ++y) {
@@ -731,51 +767,43 @@ void GhostsApp::draw()
                     int gH = min(TILE_HEIGHT, ghostHeight - TILE_HEIGHT * y);
                     int gW = min(TILE_WIDTH, ghostWidth - TILE_WIDTH * x);
                     
-                    console() << "gX: " << gX << endl;
-                    console() << "gY: " << gY << endl;
-                    console() << "gH: " << gH << endl;
-                    console() << "gW: " << gW << endl;
-                    
-                    Surface tempImage = mainImage.clone(Area(Vec2f(gX,gY),Vec2f(gX + gW, gY + gH)));
-                    mGhostSurfaces[ghostIndex] = tempImage; //bottom left, top right
+                    mGhostSurfaces[ghostIndex] = gl::Texture(Surface(panorama.clone(Area(Vec2f(gX, gY), Vec2f(gX + gW, gY + gH)))));
                     ghostIndex++;
+                    
+                    //adds end to beginning of image
+                    if (x == ghostCols - 1){
+                        gW = TILE_WIDTH;
+                        for (int u = (1024 / TILE_WIDTH); u > 0; u--){
+                            gX = ghostWidth - TILE_WIDTH * u;
+                            mGhostSurfaces[startIndex] = gl::Texture(Surface(panorama.clone(Area(Vec2f(gX, gY), Vec2f(gX + gW, gY + gH)))));
+                            startIndex++;
+                        }
+                    }
                 }
             }
             
-            //adds end to the beginning of the image
-            for (int n = 0; n < colsOnEdges; n++){
-                for (int m = 0; m < ghostRows; m++){
-                    int gX = ghostWidth - 1536 + TILE_WIDTH * n;
-                    int gY = TILE_HEIGHT * m;
-                    int gH = min(TILE_HEIGHT, ghostHeight - TILE_HEIGHT * m);;
-                    int gW = min(TILE_WIDTH, ghostWidth - TILE_WIDTH * n);;
-                    
-                    Surface tempImage = mainImage.clone(Area(Vec2f(gX,gY),Vec2f(gX + gW, gY + gH)));
-                    mGhostSurfaces[startIndex] = tempImage;
-                    startIndex++;
-                }
-            }
             console() << "col " << ghostCols << std::endl;
             console() << "row " << ghostRows << std::endl;
             
-            ghostWidth += 1536;
-            ghostCols += colsOnEdges;
+            ghostWidth += 1024;
+            ghostCols += (1024 / TILE_WIDTH);
+            
             
             // loading buttons and surfaces
-            buttonSurface = Surface( loadImage( loadResource( "Data.jpg")));
-            selectedObject = Surface(loadImage(loadResource("DataInverted.jpg")));
-            pause = Surface(loadImage(loadResource("PauseButton.jpg")));
-            play = Surface(loadImage(loadResource("PlayButton.jpg")));
+            buttonSurface = gl::Texture(Surface( loadImage( loadResource( "Data.jpg"))));
+            selectedObject = gl::Texture(Surface(loadImage(loadResource("DataInverted.jpg"))));
+            pause = gl::Texture(Surface(loadImage(loadResource("PauseButton.jpg"))));
+            play = gl::Texture(Surface(loadImage(loadResource("PlayButton.jpg"))));
+            calibrate = gl::Texture(Surface(loadImage(loadResource("Calibrate.jpg"))));
+            switchPanorama = gl::Texture(Surface(loadImage(loadResource("SwitchPanorama.jpg"))));
             
             ISREADY = true;
-            console() << "bang";
             enableRotation();
-            console() << "bam";
         } 
         
         // default is canopy
         else {
-            
+
             gl::clear( Color( 0.0f, 0.0f, 0.0f ) );
             
             float pixelXOffset; //right tilt (- towards) (+ away)
@@ -838,12 +866,13 @@ void GhostsApp::draw()
             pixelXOffset = ((actuX - modYaw)  / (2 * 3.1415)) * ghostWidth;
             
             //Transfers view to other end of image if reaches the end
+            
             while (pixelXOffset >= 0) { 
-                pixelXOffset -= (ghostWidth - SCREEN_WIDTH - 512);
+                pixelXOffset -= (ghostWidth - SCREEN_WIDTH);
                 
             }
-            while(pixelXOffset < -(ghostWidth -  SCREEN_WIDTH - 512)){
-                pixelXOffset += (ghostWidth - SCREEN_WIDTH - 512);
+            while(pixelXOffset < -(ghostWidth -  SCREEN_WIDTH)){
+                pixelXOffset += (ghostWidth - SCREEN_WIDTH);
             }
             
             // calculating change in gyro for Z direction, pitch
@@ -858,7 +887,6 @@ void GhostsApp::draw()
             xOffset = pixelXOffset;
             yOffset = pixelYOffset;
             zPitch = pitch;
-            
             
             // Figure out the base row / column to view
             int gR = ghostRows - 1 - (((int)floor(pixelYOffset / TILE_HEIGHT) + ghostRows));
@@ -919,7 +947,7 @@ void GhostsApp::draw()
                 for(int c = l; c < r ; ++c) {
                     for(int r = b; r < t ; ++r) {
                         int i = ((gC + c) % ghostCols) * ghostRows + ((gR + r) % ghostRows);
-                        mLiveTextures[ c * usedRows + r ] = gl::Texture(mGhostSurfaces[i]);
+                        mLiveTextures[ c * usedRows + r ] = mGhostSurfaces[i];
                     }
                 }
                 
@@ -931,26 +959,6 @@ void GhostsApp::draw()
             int relXOffset = (int) pixelXOffset % TILE_WIDTH;
             int relYOffset = (int) pixelYOffset % TILE_HEIGHT - SCREEN_HEIGHT;
             
-            if (pixelYOffset >= 0){ //Indicates when iPad is too high
-                modPitch = rotation.x - capturePitch;
-                glPushMatrix();
-                glRotatef(90.0, 0.0, 0.0, 1.0);
-                gl::drawStringCentered("Too High: Tilt Down", Vec2f(700.0f,-818.0f),ColorA(1,0,0,1), Font("Arial", 90));
-                glPopMatrix();  
-            }
-            
-            else if (pixelYOffset < (-ghostHeight + SCREEN_HEIGHT)){//Indicated when iPad is too low
-                modPitch = rotation.x - capturePitch;
-                gl::clear( Color( 0.0f, 0.0f, 0.0f ) );
-                glPushMatrix();
-                glRotatef(90.0, 0.0, 0.0, 1.0);
-                gl::drawStringCentered("Too Low: Tilt Up", Vec2f(700.0f,-150.0f),ColorA(0,0,1,1), Font("Arial", 90));
-                glPopMatrix();  
-            }
-            
-            else{
-                gl::clear( Color( 0.0f, 0.0f, 0.0f ) );       
-            }
             // move the picture in accordance to gyro readings
             glRotatef(90 - pitch, 0.0, 0.0, 1.0);
             glTranslatef(relXOffset, relYOffset, 0.0f );
@@ -964,7 +972,6 @@ void GhostsApp::draw()
                     glTranslatef(c * TILE_WIDTH, r * TILE_HEIGHT, 0.0f );
                     gl::draw(mLiveTextures[ c * usedRows + r ], Rectf(0.0f, 0.0f, (float)gW, (float)gH));
                     glPopMatrix();
-                    
                 }
             }
             
@@ -996,58 +1003,29 @@ void GhostsApp::draw()
                     }
                 }
                 
-//                if (mProjections[i].copiedBy == -1){
-//                    if (-mProjections[i].offY > pixelYOffset){
-//                        top++;
-//                    }
-//                    else if ((-mProjections[i].offY - 768.0) < pixelYOffset){
-//                        bottom++;
-//                    }
-//                    
-//                    if (abs(-mProjections[i].offX - (pixelXOffset - 512)) > 512){
-//                        if ((-mProjections[i].offX - pixelXOffset) > ((float)ghostWidth / 2.0)){
-//                            left++;
-//                        }
-//                        else{
-//                            right++;
-//                        }
-//                    }
-//                }
-            }
-            
-            if (displayedObject != -1){// if an object is being displayed, display text/pic
-                
-                glPushMatrix();
-                glTranslatef(mProjections[displayedObject].offX + pixelXOffset - relXOffset, mProjections[displayedObject].offY + pixelYOffset - relYOffset - SCREEN_HEIGHT, 0.0f);
-                
-                gl::enableAlphaBlending();//enables transparency
-                
-                //renders text
-                gl::Texture displayedText = gl::Texture(mProjections[displayedObject].info.render(true, false));
-                gl::Texture displayedCaptionText = gl::Texture(mProjections[displayedObject].caption.render(true, false));
-                
-                //draws the text to the right of the object with an arrow pointing to it
-                glPushMatrix();
-                glTranslatef(150.0f, -100.0f, 0.0f);
-                gl::draw(displayedText);
-                gl::drawVector(Vec3f(0.0f,50.0f,0.0f), Vec3f(-100.0f, 125.0f, 0.0f), 10.0f, 5.0f);
-                
-                //displays image gotten from server to the left of the object
-                if (mProjections[displayedObject].hasImage){
-                    glPushMatrix();
+                if (abs(mProjections[i].offX + pixelXOffset) < ghostWidth/3){
                     
-                    gl::draw(displayedCaptionText, Vec2f(-(200.0 + mProjections[displayedObject].imageFile.getWidth()), mProjections[displayedObject].imageFile.getHeight()));//draws the caption text
+                    console() << pixelXOffset << endl;
+                    console() << mProjections[i].offX << endl;
                     
-                    //draws the image
+                    if (pixelXOffset > -mProjections[i].offX && pixelXOffset - SCREEN_WIDTH < -mProjections[i].offX){
+                        if (-mProjections[i].offY > pixelYOffset){
+                            top++;
+                        }
+                        else if ((-mProjections[i].offY) < pixelYOffset - 768.0){
+                            bottom++;
+                        }
+                    }
                     
-                    gl::draw(mProjections[displayedObject].imageFile, Vec2f(-(200.0 + mProjections[displayedObject].imageFile.getWidth()), 0.0));
+                    if (-mProjections[i].offX > pixelXOffset){
+                        left++;
+                    }
                     
-                    glPopMatrix();
+                    else if (-mProjections[i].offX < pixelXOffset - 1024){
+                        right++;
+                    }
+                    
                 }
-                
-                glPopMatrix();
-                
-                glPopMatrix();
             }
             
             glPopMatrix();
@@ -1127,7 +1105,6 @@ void GhostsApp::draw()
                                 objectScanned = -1;
                                 displayedObject = -1;
                                 showScanBox = false;
-                                
                             }
                             
                         }
@@ -1146,18 +1123,14 @@ void GhostsApp::draw()
                 if (getElapsedSeconds() - timeTouched < 1.0 || isPaused){
                     
                     if (isPaused){
-                        gl::draw(play, Rectf(650.0f, 20.0f, 768.0f, 144.0f));
+                        gl::draw(play, Rectf(0, 20.0f, 768.0f, 120.0f));
+                        gl::draw(switchPanorama, Rectf(0, 924, 100, 1024));
                         showScanBox = false;
                     }
                     else{
-                        gl::draw(pause, Rectf(650.0f, 20.0f, 768.0f, 144.0f));
-                        gl::drawSolidRect(Rectf(650.0f, 900.0f, 768.0f, 1024.0f));
-                        glPushMatrix();
-                        glRotatef(90, 0, 0, 1);
-                        gl::drawStringCentered("Hold", Vec2f(970.0f, -760.0f), ColorA(0,0,0,1), Font("Arial", 20));
-                        gl::drawStringCentered("to", Vec2f(970.0f, -735.0f), ColorA(0,0,0,1), Font("Arial", 20));
-                        gl::drawStringCentered("Calibrate", Vec2f(980.0f, -710.0f), ColorA(0,0,0,1), Font("Arial", 20));
-                        glPopMatrix();
+                        gl::draw(pause, Rectf(0.0f, 20.0f, 768.0f, 120.0f));
+                        gl::draw(calibrate, Rectf(668, 924, 768, 1024));
+                        gl::draw(switchPanorama, Rectf(0, 924, 100, 1024));
                         showScanBox = true;
                     }
                 }
@@ -1191,42 +1164,76 @@ void GhostsApp::draw()
                 glPopMatrix();              
             }
         }
+        
+        if (displayedObject != -1){// if an object is being displayed, display text/pic
             
-//    //searching arrows to indicate where projections are
-//    if (right > 0){
-//        glPushMatrix();
-//        glTranslatef(384.0, 1000.0, 0.0);
-//        glRotatef(90.0, 0.0, 0.0, 1.0);
-//        gl::drawSolidCircle(Vec2f(0.0, 0.0f), 20.0f, 4);
-//        glPopMatrix();
-//    }
-//    if (left > 0){
-//        glPushMatrix();
-//        glTranslatef(384.0, 44.0, 0.0);
-//        glRotatef(-90.0, 0.0, 0.0, 1.0);
-//        gl::drawSolidCircle(Vec2f(0.0, 0.0f), 20.0f, 4);
-//        glPopMatrix();
-//    }
-//    if (top > 0){
-//        glPushMatrix();
-//        glTranslatef(744.0, 512, 0.0);
-//        gl::drawSolidCircle(Vec2f(0.0, 0.0f), 20.0f, 4);
-//
-//        glPopMatrix();
-//    }
-//    if (bottom > 0){
-//        glPushMatrix();
-//        glTranslatef(24.0, 512.0, 0.0);
-//        glRotatef(180.0, 0.0, 0.0, 1.0);
-//        gl::drawSolidCircle(Vec2f(0.0, 0.0f), 20.0f, 4);
-//        glPopMatrix();
-//    }
-//        
-//        top = 0;
-//        bottom = 0;
-//        right = 0;
-//        left = 0;
+            glPushMatrix();
+            glTranslatef(500, 500, 0.0f);
+            glRotatef(90, 0, 0, 1);
+            
+            gl::enableAlphaBlending();//enables transparency
+            
+            //draws the text to the right of the object with an arrow pointing to it
+            glPushMatrix();
+            glTranslatef(150.0f, -100.0f, 0.0f);
+            gl::draw(mProjections[displayedObject].infoImage);
+            gl::drawVector(Vec3f(0.0f,50.0f,0.0f), Vec3f(-100.0f, 125.0f, 0.0f), 10.0f, 5.0f);
+            
+            //displays image gotten from server to the left of the object
+            if (mProjections[displayedObject].hasImage){
+                glPushMatrix();
+                
+                
+                gl::draw(mProjections[displayedObject].captionImage, Vec2f(-(200.0 + mProjections[displayedObject].imageFile.getWidth()), mProjections[displayedObject].imageFile.getHeight()));//draws the caption text
+                
+                //draws the image
+                gl::draw(mProjections[displayedObject].imageFile, Vec2f(-(200.0 + mProjections[displayedObject].imageFile.getWidth()), 0.0));
+                
+                glPopMatrix();
+            }
+            
+            glPopMatrix();
+            
+            glPopMatrix();
+        }
+        
+        //searching arrows to indicate where projections are
+        if (right > 0){
+            glPushMatrix();
+            glTranslatef(384.0, 1000.0, 0.0);
+            glRotatef(90.0, 0.0, 0.0, 1.0);
+            gl::drawSolidCircle(Vec2f(0.0, 0.0f), 20.0f, 4);
+            glPopMatrix();
+        }
+        if (left > 0){
+            glPushMatrix();
+            glTranslatef(384.0, 44.0, 0.0);
+            glRotatef(-90.0, 0.0, 0.0, 1.0);
+            gl::drawSolidCircle(Vec2f(0.0, 0.0f), 20.0f, 4);
+            glPopMatrix();
+        }
+        if (top > 0){
+            glPushMatrix();
+            glTranslatef(744.0, 512, 0.0);
+            gl::drawSolidCircle(Vec2f(0.0, 0.0f), 20.0f, 4);
+            
+            glPopMatrix();
+        }
+        if (bottom > 0){
+            glPushMatrix();
+            glTranslatef(24.0, 512.0, 0.0);
+            glRotatef(180.0, 0.0, 0.0, 1.0);
+            gl::drawSolidCircle(Vec2f(0.0, 0.0f), 20.0f, 4);
+            glPopMatrix();
+        }
+        
+        //resets count
+        top = 0;
+        bottom = 0;
+        right = 0;
+        left = 0;
     }
 }
+
 
 CINDER_APP_COCOA_TOUCH( GhostsApp, RendererGl )
